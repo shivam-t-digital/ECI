@@ -1,0 +1,9 @@
+flask
+python-dotenv
+psycopg2-binary
+python-decouple
+flask_sqlalchemy
+flask-CORS
+flask_migrate
+mysqlclient
+requests
