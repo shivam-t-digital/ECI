@@ -7,3 +7,4 @@ flask-CORS
 flask_migrate
 mysqlclient
 requests
+pymysql
