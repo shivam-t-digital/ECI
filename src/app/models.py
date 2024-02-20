@@ -9,6 +9,7 @@ class Question(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     question_text = db.Column(db.String(255), nullable=False)
     answers = db.relationship('Answer', backref='question', uselist=False)
+    section = db.Column(db.String(50), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
 
 class Answer(db.Model):
