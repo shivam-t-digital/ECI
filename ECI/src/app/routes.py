@@ -22,20 +22,13 @@ users_bp = Blueprint('users', __name__)
 
 @users_bp.route('/login', methods=['POST'])
 def login():
-    print("Login request received")
     username = request.json.get('username', None)
     password = request.json.get('password', None)
-    print("username", username)
-    print("password", password)
-    print("username", Config.USERNAME)
-    print("password", Config.PASSWORD)
     # Check if username and password match with the ones from the .env file
     if username != Config.USERNAME or password != Config.PASSWORD:
         return jsonify({"msg": "Bad username or password"}), 401
 
-
     # Create access token
-    print("Creating access token")
     access_token = create_access_token(identity=username)
     # Get the expiration time of the token
     expires = datetime.utcnow() + app.config['JWT_ACCESS_TOKEN_EXPIRES']
@@ -43,78 +36,71 @@ def login():
     # Calculate remaining validity time in minutes
     validity_minutes = int((expires - datetime.utcnow()).total_seconds() / 60)
 
-    print("Access token created")
     return jsonify(access_token=access_token, expires_in_minutes=validity_minutes),200
 
 
 @users_bp.route('/user_details', methods=['POST'])
-@jwt_required()
 def save_user_details():
-    # Get data from request JSON
-    data = request.json
-    print('Received data:', data)
-    # Extract user details
-    user_ip = data.get('user_ip')
-    name = data.get('name')
-    email = data.get('email')
-    phn_no = data.get('phn_no')
-    address = data.get('address')
-    dob = data.get('dob')
-    image_base64 = data.get('image')
-        
-    # Ensure proper padding for base64 string
-    padded_base64 = image_base64 + '=' * (-len(image_base64) % 4)
-        
-    # Decode base64-encoded image data to bytes
-    image_bytes = base64.b64decode(padded_base64)
+    try:
+        data = request.json
+        user_ip, name, email, phn_no, address, dob, image_base64 = (
+            data.get('user_ip'),
+            data.get('name'),
+            data.get('email'),
+            data.get('phn_no'),
+            data.get('address'),
+            data.get('dob'),
+            data.get('image')
+        )
+        image_bytes = None
+        if image_base64 is not None:
+            padded_base64 = image_base64 + '=' * (-len(image_base64) % 4)
+            image_bytes = base64.b64decode(padded_base64)
 
+        existing_user = UserDetails.query.filter_by(email=email).first()
+        if existing_user:
+            existing_user.cert += 1
+        else:
+            user_details = UserDetails(
+                user_ip=user_ip,
+                name=name,
+                email=email,
+                phn_no=phn_no,
+                address=address,
+                dob=dob,
+                image=image_bytes,
+                cert=1
+            )
+            db.session.add(user_details)
 
-    # Check if the user already exists in the database
-    existing_user = UserDetails.query.filter_by(email=email).first()
-    if existing_user:
-        # If the user exists, increment the cert field by 1
-        existing_user.cert += 1
         db.session.commit()
-    else:
-        # If the user does not exist, save user details to database
-        user_details = UserDetails(user_ip=user_ip, name=name, email=email, phn_no = phn_no, address=address, dob=dob, image=image_bytes, cert=1)
-        db.session.add(user_details)
-        db.session.commit()
-        print('User details stored in database:', user_details)
+        return jsonify({'message': 'User details saved successfully'}), 200
 
-    # Return saved data as JSON response
-    return jsonify({
-        'message': 'User details saved successfully',
-        'data': data
-    }), 200
-
+    except Exception as e:
+        db.session.rollback()
+        print('Error:', e)
+        return jsonify({'error': 'An error occurred while saving user details'}), 500
 
 @users_bp.route('/geo_details', methods=['POST'])
-@jwt_required()
+# @jwt_required()
 def save_geo_details():
-    # Get data from request JSON
-    data = request.json
+    try:
+        data = request.json
+        user_ip, device_data = data.get('user_ip'), data.get('device_data')
+        ip_details = get_ip_details(user_ip)
+        geo_details = UserGeographicDetails(
+            user_ip=user_ip,
+            device_data_json=json.dumps(device_data),
+            user_geo_details=ip_details
+        )
+        db.session.add(geo_details)
+        db.session.commit()
+        return jsonify({'message': 'User geographic details saved successfully', 'data': data}), 200
 
-    # Extract user IP and device data
-    user_ip = data.get('user_ip')
-    device_data = data.get('device_data')
-    print("Received user IP:", user_ip)
-    print("Received device data:", device_data)
-
-    # Get IP details using third-party API
-    ip_details=get_ip_details(user_ip)
-    print('ip_details:', ip_details)
-
-    # Save IP and device details to database
-    geo_details = UserGeographicDetails(user_ip=user_ip, device_data_json=json.dumps(device_data),user_geo_details= ip_details)
-    db.session.add(geo_details)
-    db.session.commit()
-
-    # Return saved data as JSON response
-    return jsonify({
-        'message': 'User geographic details saved successfully',
-        'data': data
-    }), 200
+    except Exception as e:
+        db.session.rollback()
+        print('Error:', e)
+        return jsonify({'error': 'An error occurred while saving geographic details'}), 500
 
 
 
@@ -127,8 +113,6 @@ def get_ip_details(ip_address):
         if response.status_code == 200:
             # Extract IP details from the response
             ip_details = response.json()
-            print("API Response:", ip_details)  # Print API response for troubleshooting
-
             return json.dumps(ip_details)
         else:
             # Return an error message if the request failed
@@ -136,9 +120,6 @@ def get_ip_details(ip_address):
                 'error': 'Failed to fetch IP details from the third-party API'
             }), 500
     except Exception as e:
-        # Log the exception
-        print(f"An error occurred: {e}")
-
         # Return an error message
         return jsonify({
             'error': 'An unexpected error occurred while processing the request'
@@ -146,10 +127,9 @@ def get_ip_details(ip_address):
     
 
 @users_bp.route('/quiz_data', methods=['GET'])
-@jwt_required()
+# @jwt_required()
 def get_quiz_data():
     section = request.args.get('section')
-    print('Received request for section:', section)
 
     # Validate section
     if section not in ['A', 'B', 'C']:
@@ -159,8 +139,6 @@ def get_quiz_data():
 
     # Query the database to get questions for the specified section
     questions = Question.query.filter_by(section=section).all()
-    print('Found questions:', questions)
-
     for idx, question in enumerate(questions, start=1):
         data = {
             'question': question.question_text,
@@ -187,32 +165,33 @@ def get_quiz_data():
                 data['correct'] = chr(i)
 
         quiz_data.append(data)
-
-    print('Returning quiz data:', quiz_data)
     return jsonify(quiz_data)
 
 
 
-# Route to serve images based on round
-@users_bp.route('/image', methods=['GET'])
+@users_bp.route('/image/<int:image_id>', methods=['GET'])
 def get_image(image_id):
-    print(f"Requested image ID: {image_id}")
+    try:
+        image_data = UI_elements.query.get(image_id)
+        if image_data and image_data.image:
+            image_path = image_data.image
+            if os.path.exists(image_path):
+                _, extension = os.path.splitext(image_path)
+                mimetype = {
+                    '.jpg': 'image/jpeg',
+                    '.png': 'image/png',
+                    '.gif': 'image/gif'
+                }.get(extension.lower(), 'application/octet-stream')
 
-    # Query the database to retrieve the row containing the image data
-    image_data = UI_elements.query.all()
-    print(f"Requested image data: {image_data}")
-    
-    # Check if image exists
-    if image_data and image_data.image:
-        print("Image found in the database")
+                with open(image_path, 'rb') as f:
+                    image_bytes = f.read()
 
-        # Convert binary image data to base64 encoding
-        image_base64 = base64.b64encode(image_data.image).decode('utf-8')
+                return send_file(io.BytesIO(image_bytes), mimetype=mimetype), 200
+            else:
+                return 'Image file not found', 404
+        else:
+            return 'Image not found', 404
 
-        # Return the base64 encoded image data as a JSON response
-        return jsonify({'image_base64': image_base64})
-
-    else:
-        print("Image not found in the database")
-        # Return error message if image not found
-        return 'Image not found', 404
+    except Exception as e:
+        print('Error:', e)
+        return 'An error occurred while processing the request', 500

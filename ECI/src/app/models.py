@@ -44,10 +44,10 @@ class UserGeographicDetails(db.Model):
 class UserDetails(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_ip = db.Column(db.String(45), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-    address = db.Column(db.String(250), nullable=False)
-    email = db.Column(db.String(100), nullable=False)
-    dob = db.Column(db.String(20), nullable=False)
+    name = db.Column(db.String(100), nullable=True)
+    address = db.Column(db.String(250), nullable=True)
+    email = db.Column(db.String(100), nullable=True)
+    dob = db.Column(db.String(20), nullable=True)
     image = db.Column(db.LargeBinary, nullable=True)
     cert = db.Column(db.Integer, default=0)
     phn_no = db.Column(db.String(15), nullable=True)
@@ -67,6 +67,7 @@ class UserProgress(db.Model):
 
 # Define the UI_elements model
 class UI_elements(db.Model):
+    __tablename__ = 'UI_elements' 
     id = db.Column(db.Integer, primary_key=True)
     round = db.Column(db.Integer, nullable=False)
     image = db.Column(db.LargeBinary, nullable=True)
