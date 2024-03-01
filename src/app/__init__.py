@@ -4,6 +4,8 @@ from .models import db
 from .routes import users_bp
 from flask_cors import CORS
 from flask_migrate import Migrate
+from flask_jwt_extended import JWTManager
+
 
 
 migrate = Migrate()
@@ -15,7 +17,9 @@ def create_app():
     app.config.from_object(Config)
     db.init_app(app)
     migrate.init_app(app, db)
+    jwt = JWTManager(app)
     app.register_blueprint(users_bp)
+
 
     with app.app_context():
         db.create_all()

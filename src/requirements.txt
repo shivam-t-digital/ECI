@@ -7,4 +7,5 @@ flask-CORS
 flask_migrate
 mysqlclient
 requests
-pymysql
+PyJWT 
+Flask-JWT-Extended
